@@ -65,7 +65,7 @@ public final class FaceNetTranslator implements Translator<BufferedImage, float[
                 }
             }
         }
-        NDArray array = manager.create(data, new ai.djl.ndarray.types.Shape(1, 3, h, w));
+        NDArray array = manager.create(data, new ai.djl.ndarray.types.Shape(3, h, w));
         return new NDList(array);
     }
 

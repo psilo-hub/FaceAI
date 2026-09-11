@@ -3,7 +3,7 @@ package free.svoss.tools.faceai.internal;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import ai.djl.ndarray.NDManager;
-import ai.djl.ndarray.types.DataType;
+import ai.djl.ndarray.types.Shape;
 import ai.djl.translate.Translator;
 import ai.djl.translate.TranslatorContext;
 
@@ -12,22 +12,38 @@ import free.svoss.tools.faceai.FaceAIConfig;
 
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 /**
  * DJL Translator for RetinaFace face detection.
  * <p>
- * Preprocessing: RGB conversion, letterbox resize to model input size
- * (default 640×640).  Postprocessing: parse bounding boxes and confidence
- * scores from model output, apply confidence threshold and NMS, clamp
- * boxes, sort by confidence descending.
+ * Preprocessing matches {@code Pytorch_Retinaface} exactly:
+ * <ol>
+ *   <li>Read pixels as BGR, values in {@code [0, 255]}</li>
+ *   <li>Subtract the BGR channel-wise mean {@code [104, 117, 123]}</li>
+ *   <li>Arrange as CHW tensor {@code 3 x H x W} (the leading batch dimension
+ *       is added by DJL's batchifier)</li>
+ * </ol>
+ * <p>
+ * Post-processing decodes anchor offsets from the raw model output
+ * ({@code loc}, {@code conf}, {@code landms} tensors), applies the confidence
+ * threshold, performs non-maximum suppression, clamps boxes and sorts by
+ * descending confidence.
  *
  * <p><strong>This class is internal — not part of the public API.</strong>
  */
 public final class RetinaFaceTranslator implements Translator<BufferedImage, DetectedFace[]> {
 
+    // RetinaFace (ResNet-50 backbone) prior-box configuration.
+    private static final double VARIANCE_IN = 0.1;
+    private static final double VARIANCE_EN = 0.2;
+    private static final int[][] SCALES = {{16, 32}, {64, 128}, {256, 512}};
+    private static final int[] STEPS = {8, 16, 32};
+    private static final int TOP_K = 5000;
+    private static final float[] BGR_MEAN = {104f, 117f, 123f};
+
     private final FaceAIConfig config;
-    private final int inputSize;
 
     /**
      * Creates a translator with the given configuration.
@@ -35,110 +51,114 @@ public final class RetinaFaceTranslator implements Translator<BufferedImage, Det
      * @param config FaceAI config (provides thresholds)
      */
     public RetinaFaceTranslator(FaceAIConfig config) {
+        if (config == null) {
+            throw new NullPointerException("config must not be null");
+        }
         this.config = config;
-        this.inputSize = ModelConstants.RETINAFACE_INPUT_SIZE;
     }
 
     @Override
     public NDList processInput(TranslatorContext ctx, BufferedImage input) {
-        NDManager manager = ctx.getNDManager();
-        BufferedImage rgb = ImageUtils.toRgb(input);
-        BufferedImage resized = letterbox(rgb, inputSize);
-        NDArray array = toNdArray(manager, resized);
-        return new NDList(array);
-    }
+        // Store original dimensions for post-processing.
+        ctx.setAttachment("width", (long) input.getWidth());
+        ctx.setAttachment("height", (long) input.getHeight());
 
-    @Override
-    public DetectedFace[] processOutput(TranslatorContext ctx, NDList list) {
-        NDArray output = list.singletonOrThrow();
-        float threshold = config.detectionThreshold();
-
-        List<DetectedFace> faces = new ArrayList<>();
-
-        if (output.getShape().dimension() == 2) {
-            long rows = output.getShape().get(0);
-            long cols = output.getShape().get(1);
-            float[] data = output.toType(DataType.FLOAT32, true).toFloatArray();
-
-            for (int i = 0; i < rows; i++) {
-                if (cols >= 5) {
-                    float x1 = data[i * (int) cols];
-                    float y1 = data[i * (int) cols + 1];
-                    float x2 = data[i * (int) cols + 2];
-                    float y2 = data[i * (int) cols + 3];
-                    float score = data[i * (int) cols + 4];
-
-                    if (score < threshold) continue;
-
-                    int x = Math.max(0, Math.round(x1));
-                    int y = Math.max(0, Math.round(y1));
-                    int w = Math.max(1, Math.round(x2 - x1));
-                    int h = Math.max(1, Math.round(y2 - y1));
-
-                    // Clamp to model input bounds
-                    if (x + w > inputSize) w = inputSize - x;
-                    if (y + h > inputSize) h = inputSize - y;
-                    if (w <= 0 || h <= 0) continue;
-
-                    faces.add(new DetectedFace(x, y, w, h, score));
-                }
-            }
-        }
-
-        return applyNms(faces.toArray(new DetectedFace[0]), config.nmsThreshold());
-    }
-
-    /**
-     * Letterboxes an image to exactly {@code targetSize} × {@code targetSize}.
-     * <p>
-     * The source is scaled (aspect ratio preserved) to fit inside the target
-     * square, centered, and padded with WHITE. Returns a square RGB image.
-     */
-    private static BufferedImage letterbox(BufferedImage src, int targetSize) {
-        int srcW = src.getWidth();
-        int srcH = src.getHeight();
-        float scale = Math.min((float) targetSize / srcW, (float) targetSize / srcH);
-        int scaledW = Math.max(1, Math.round(srcW * scale));
-        int scaledH = Math.max(1, Math.round(srcH * scale));
-        int padX = (targetSize - scaledW) / 2;
-        int padY = (targetSize - scaledH) / 2;
-
-        BufferedImage out = new BufferedImage(targetSize, targetSize, BufferedImage.TYPE_INT_RGB);
-        java.awt.Graphics2D g = out.createGraphics();
-        try {
-            g.setColor(java.awt.Color.WHITE);
-            g.fillRect(0, 0, targetSize, targetSize);
-            g.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION,
-                    java.awt.RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-            g.drawImage(src, padX, padY, scaledW, scaledH, null);
-        } finally {
-            g.dispose();
-        }
-        return out;
-    }
-
-    /**
-     * Converts a BufferedImage to an NDArray in NCHW format (1×3×H×W)
-     * with pixel values scaled to [0, 1].
-     */
-    private static NDArray toNdArray(NDManager manager, BufferedImage img) {
-        int w = img.getWidth();
-        int h = img.getHeight();
+        int h = input.getHeight();
+        int w = input.getWidth();
         float[] data = new float[3 * h * w];
         int idx = 0;
         for (int c = 0; c < 3; c++) {
             for (int y = 0; y < h; y++) {
                 for (int x = 0; x < w; x++) {
-                    int rgb = img.getRGB(x, y);
+                    int argb = input.getRGB(x, y);
                     int val;
-                    if (c == 0) val = (rgb >> 16) & 0xFF;
-                    else if (c == 1) val = (rgb >> 8) & 0xFF;
-                    else val = rgb & 0xFF;
-                    data[idx++] = val / 255.0f;
+                    if (c == 0) val = argb & 0xFF;               // B
+                    else if (c == 1) val = (argb >> 8) & 0xFF;   // G
+                    else val = (argb >> 16) & 0xFF;              // R
+                    data[idx++] = val;
                 }
             }
         }
-        return manager.create(data, new ai.djl.ndarray.types.Shape(1, 3, h, w));
+
+        NDManager manager = ctx.getNDManager();
+        NDArray array = manager.create(data, new Shape(3, h, w));
+        // Subtract BGR mean (RetinaFace was trained on BGR input).
+        NDArray mean = manager.create(BGR_MEAN, new Shape(3, 1, 1));
+        return new NDList(array.sub(mean));
+    }
+
+    @Override
+    public DetectedFace[] processOutput(TranslatorContext ctx, NDList list) {
+        int width = (int) (long) ctx.getAttachment("width");
+        int height = (int) (long) ctx.getAttachment("height");
+
+        NDArray loc = list.get(0);   // [N, 4] anchor offsets
+        NDArray conf = list.get(1);  // [N, 2] [background, face]
+        long count = loc.getShape().get(0);
+
+        float[] locData = loc.toFloatArray();
+        float[] confData = conf.toFloatArray();
+
+        double[] priorCx = new double[(int) count];
+        double[] priorCy = new double[(int) count];
+        double[] priorW = new double[(int) count];
+        double[] priorH = new double[(int) count];
+        generatePriors(width, height, priorCx, priorCy, priorW, priorH);
+
+        float threshold = config.detectionThreshold();
+        List<DetectedFace> candidates = new ArrayList<>();
+
+        for (int i = 0; i < count; i++) {
+            float score = confData[i * 2 + 1];
+            if (score < threshold) {
+                continue;
+            }
+            double cx = priorCx[i] + locData[i * 4] * VARIANCE_IN * priorW[i];
+            double cy = priorCy[i] + locData[i * 4 + 1] * VARIANCE_IN * priorH[i];
+            double bw = priorW[i] * Math.exp(locData[i * 4 + 2] * VARIANCE_EN);
+            double bh = priorH[i] * Math.exp(locData[i * 4 + 3] * VARIANCE_EN);
+
+            int x1 = Math.max(0, Math.min((int) Math.round((cx - bw / 2) * width), width));
+            int y1 = Math.max(0, Math.min((int) Math.round((cy - bh / 2) * height), height));
+            int x2 = Math.max(0, Math.min((int) Math.round((cx + bw / 2) * width), width));
+            int y2 = Math.max(0, Math.min((int) Math.round((cy + bh / 2) * height), height));
+            if (x2 - x1 > 0 && y2 - y1 > 0) {
+                candidates.add(new DetectedFace(x1, y1, x2 - x1, y2 - y1, score));
+            }
+        }
+
+        // Sort by confidence descending, keep top-K, then apply NMS.
+        candidates.sort(Comparator.comparingDouble(DetectedFace::confidence).reversed());
+        if (candidates.size() > TOP_K) {
+            candidates = new ArrayList<>(candidates.subList(0, TOP_K));
+        }
+        return applyNms(candidates.toArray(new DetectedFace[0]), config.nmsThreshold());
+    }
+
+    /**
+     * Generates RetinaFace prior boxes (normalized {@code [cx, cy, w, h]}) for
+     * the given image dimensions, mirroring {@code Pytorch_Retinaface}.
+     */
+    static void generatePriors(int width, int height,
+                               double[] outCx, double[] outCy,
+                               double[] outW, double[] outH) {
+        int idx = 0;
+        for (int l = 0; l < STEPS.length; l++) {
+            int step = STEPS[l];
+            int gridY = (int) Math.ceil((float) height / step);
+            int gridX = (int) Math.ceil((float) width / step);
+            for (int yi = 0; yi < gridY; yi++) {
+                for (int xi = 0; xi < gridX; xi++) {
+                    for (int size : SCALES[l]) {
+                        outCx[idx] = (xi + 0.5) * step / (double) width;
+                        outCy[idx] = (yi + 0.5) * step / (double) height;
+                        outW[idx] = size / (double) width;
+                        outH[idx] = size / (double) height;
+                        idx++;
+                    }
+                }
+            }
+        }
     }
 
     /**
