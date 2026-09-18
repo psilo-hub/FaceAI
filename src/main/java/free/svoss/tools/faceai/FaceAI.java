@@ -4,7 +4,10 @@ import free.svoss.tools.faceai.internal.EmbeddingUtils;
 import free.svoss.tools.faceai.internal.FaceNetRecognizer;
 import free.svoss.tools.faceai.internal.RetinaFaceDetector;
 
+import ai.djl.repository.zoo.ModelNotFoundException;
+
 import java.awt.image.BufferedImage;
+import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
@@ -143,6 +146,50 @@ public final class FaceAI implements AutoCloseable {
         if (recognizer != null) {
             recognizer.close();
             recognizer = null;
+        }
+    }
+
+    /**
+     * Checks whether both models are already available in the cache.
+     * <p>
+     * On the first run the models are absent and {@code false} is returned.
+     * Subsequent starts see the cached files and return {@code true}, so a
+     * download frame can be skipped. A network failure while DJL resolves the
+     * model metadata also results in {@code false} (the download will be
+     * attempted and reported instead).
+     *
+     * @return {@code true} if both the RetinaFace and FaceNet models exist in
+     *         the configured cache directory
+     */
+    public boolean isModelsDownloaded() {
+        checkNotClosed();
+        try {
+            return RetinaFaceDetector.buildCriteria(config).isDownloaded()
+                    && FaceNetRecognizer.buildCriteria(config).isDownloaded();
+        } catch (IOException | ModelNotFoundException e) {
+            return false;
+        }
+    }
+
+    /**
+     * Downloads the RetinaFace and FaceNet models if they are not cached yet.
+     * <p>
+     * Models already present in the cache are skipped without any download
+     * activity. During an actual download, progress is reported through the
+     * {@link ModelDownloadListener} configured on the {@link FaceAIConfig}.
+     * This method only downloads files into the cache; the models are still
+     * loaded lazily on their first use.
+     *
+     * @throws FaceAIException if a model download fails
+     */
+    public void downloadModelsIfNecessary() {
+        checkNotClosed();
+        try {
+            RetinaFaceDetector.buildCriteria(config).downloadModel();
+            FaceNetRecognizer.buildCriteria(config).downloadModel();
+        } catch (IOException | ModelNotFoundException e) {
+            throw new FaceAIException(
+                    "Failed to download FaceAI models: " + e.getMessage(), e);
         }
     }
 

@@ -5,7 +5,9 @@ import ai.djl.inference.Predictor;
 import ai.djl.repository.zoo.Criteria;
 import ai.djl.repository.zoo.ModelNotFoundException;
 import ai.djl.repository.zoo.ZooModel;
+import ai.djl.util.Progress;
 import free.svoss.tools.faceai.FaceAIException;
+import free.svoss.tools.faceai.ModelDownloadListener;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -132,6 +134,38 @@ public final class ModelLoader {
             return ModelConstants.FACENET_MODEL_URL;
         }
         return null;
+    }
+
+    /**
+     * Attaches a download-progress listener to the given criteria.
+     * <p>
+     * DJL reports the actual network download through a
+     * {@link ai.djl.util.Progress} attached to the {@link Criteria} builder. If
+     * {@code listener} is {@code null} (the default) the criteria is returned
+     * unchanged, matching the previous no-progress behavior.
+     *
+     * @param <I>       model input type
+     * @param <O>       model output type
+     * @param criteria  the criteria to wrap; must not be null
+     * @param modelName logical model name (for example "RetinaFace")
+     * @param modelUrl  the model URL that files are downloaded from
+     * @param cacheDir  directory the models are stored under
+     * @param listener  listener to notify, or {@code null} for no progress
+     * @return the original criteria if no listener is given, otherwise a new
+     *         criteria that reports download progress to the listener
+     */
+    public static <I, O> Criteria<I, O> withDownloadProgress(
+            Criteria<I, O> criteria, String modelName, String modelUrl,
+            String cacheDir, ModelDownloadListener listener) {
+        Objects.requireNonNull(criteria, "criteria must not be null");
+        Objects.requireNonNull(modelName, "modelName must not be null");
+        Objects.requireNonNull(modelUrl, "modelUrl must not be null");
+        Objects.requireNonNull(cacheDir, "cacheDir must not be null");
+        if (listener == null) {
+            return criteria;
+        }
+        Progress progress = new DownloadProgress(modelName, modelUrl, cacheDir, listener);
+        return criteria.toBuilder().optProgress(progress).build();
     }
 
     /**

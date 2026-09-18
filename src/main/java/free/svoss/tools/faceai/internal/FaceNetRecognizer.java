@@ -51,6 +51,24 @@ public final class FaceNetRecognizer implements AutoCloseable {
         Objects.requireNonNull(config, "config must not be null");
         this.config = config;
 
+        this.model = ModelLoader.loadModel(buildCriteria(config), "FaceNet",
+                config.resolvedCacheDir().getAbsolutePath());
+        this.predictor = ModelLoader.createPredictor(model);
+        logger.info("FaceNet recognizer initialized");
+    }
+
+    /**
+     * Builds the DJL criteria for the FaceNet model.
+     * <p>
+     * Used both by the constructor and by the {@code FaceAI} facade to inspect
+     * or trigger a download before the model is actually loaded.
+     *
+     * @param config the FaceAI config; must not be null
+     * @return a new criteria (with download progress wired from the config)
+     */
+    public static Criteria<BufferedImage, float[]> buildCriteria(FaceAIConfig config) {
+        Objects.requireNonNull(config, "config must not be null");
+
         FaceNetTranslator translator = new FaceNetTranslator(config);
 
         String modelUrl = config.recognitionModelUrl() != null
@@ -66,10 +84,9 @@ public final class FaceNetRecognizer implements AutoCloseable {
                 .optTranslator(translator)
                 .build();
 
-        this.model = ModelLoader.loadModel(criteria, "FaceNet",
-                config.resolvedCacheDir().getAbsolutePath());
-        this.predictor = ModelLoader.createPredictor(model);
-        logger.info("FaceNet recognizer initialized");
+        return ModelLoader.withDownloadProgress(criteria, "FaceNet", modelUrl,
+                config.resolvedCacheDir().getAbsolutePath(),
+                config.modelDownloadListener());
     }
 
     /**

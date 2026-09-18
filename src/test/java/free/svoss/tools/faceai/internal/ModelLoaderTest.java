@@ -1,6 +1,8 @@
 package free.svoss.tools.faceai.internal;
 
+import ai.djl.repository.zoo.Criteria;
 import free.svoss.tools.faceai.FaceAIConfig;
+import free.svoss.tools.faceai.RecordingModelDownloadListener;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -81,6 +83,41 @@ class ModelLoaderTest {
     void loadModelRequiresNonNullModelName() {
         assertThrows(NullPointerException.class,
                 () -> ModelLoader.loadModel(null, null));
+    }
+
+    @Test
+    void withDownloadProgressReturnsSameCriteriaWithoutListener() {
+        Criteria<String, Object> criteria = Criteria.builder()
+                .setTypes(String.class, Object.class)
+                .build();
+        assertSame(criteria, ModelLoader.withDownloadProgress(
+                criteria, "RetinaFace", "https://example.com/model.zip",
+                tempDir.getAbsolutePath(), null));
+    }
+
+    @Test
+    void withDownloadProgressWiresDjlProgressWhenListenerGiven() {
+        Criteria<String, Object> criteria = Criteria.builder()
+                .setTypes(String.class, Object.class)
+                .build();
+        RecordingModelDownloadListener listener = new RecordingModelDownloadListener();
+        Criteria<String, Object> wired = ModelLoader.withDownloadProgress(
+                criteria, "FaceNet", "https://example.com/face.zip",
+                tempDir.getAbsolutePath(), listener);
+        assertNotSame(criteria, wired);
+        assertNotNull(wired.getProgress());
+    }
+
+    @Test
+    void withDownloadProgressRequiresNonNullArguments() {
+        RecordingModelDownloadListener listener = new RecordingModelDownloadListener();
+        assertThrows(NullPointerException.class, () -> ModelLoader.withDownloadProgress(
+                null, "RetinaFace", "https://example.com/model.zip",
+                tempDir.getAbsolutePath(), listener));
+        assertThrows(NullPointerException.class, () -> ModelLoader.withDownloadProgress(
+                Criteria.builder().setTypes(String.class, Object.class).build(),
+                null, "https://example.com/model.zip",
+                tempDir.getAbsolutePath(), listener));
     }
 
     @Test

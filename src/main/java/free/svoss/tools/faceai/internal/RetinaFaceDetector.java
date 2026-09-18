@@ -52,6 +52,24 @@ public final class RetinaFaceDetector implements AutoCloseable {
     public RetinaFaceDetector(FaceAIConfig config) {
         Objects.requireNonNull(config, "config must not be null");
 
+        this.model = ModelLoader.loadModel(buildCriteria(config), "RetinaFace",
+                config.resolvedCacheDir().getAbsolutePath());
+        this.predictor = ModelLoader.createPredictor(model);
+        logger.info("RetinaFace detector initialized");
+    }
+
+    /**
+     * Builds the DJL criteria for the RetinaFace model.
+     * <p>
+     * Used both by the constructor and by the {@code FaceAI} facade to inspect
+     * or trigger a download before the model is actually loaded.
+     *
+     * @param config the FaceAI config; must not be null
+     * @return a new criteria (with download progress wired from the config)
+     */
+    public static Criteria<BufferedImage, DetectedFace[]> buildCriteria(FaceAIConfig config) {
+        Objects.requireNonNull(config, "config must not be null");
+
         RetinaFaceTranslator translator = new RetinaFaceTranslator(config);
 
         String modelUrl = config.detectionModelUrl() != null
@@ -67,10 +85,9 @@ public final class RetinaFaceDetector implements AutoCloseable {
                 .optTranslator(translator)
                 .build();
 
-        this.model = ModelLoader.loadModel(criteria, "RetinaFace",
-                config.resolvedCacheDir().getAbsolutePath());
-        this.predictor = ModelLoader.createPredictor(model);
-        logger.info("RetinaFace detector initialized");
+        return ModelLoader.withDownloadProgress(criteria, "RetinaFace", modelUrl,
+                config.resolvedCacheDir().getAbsolutePath(),
+                config.modelDownloadListener());
     }
 
     /**

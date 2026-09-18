@@ -16,6 +16,7 @@ public final class FaceAIConfig {
     private final boolean l2NormalizeEmbeddings;
     private final String detectionModelUrl;
     private final String recognitionModelUrl;
+    private final ModelDownloadListener modelDownloadListener;
 
     private FaceAIConfig(Builder builder) {
         this.cacheDir = builder.cacheDir;
@@ -26,6 +27,7 @@ public final class FaceAIConfig {
         this.l2NormalizeEmbeddings = builder.l2NormalizeEmbeddings;
         this.detectionModelUrl = builder.detectionModelUrl;
         this.recognitionModelUrl = builder.recognitionModelUrl;
+        this.modelDownloadListener = builder.modelDownloadListener;
     }
 
     /**
@@ -51,6 +53,8 @@ public final class FaceAIConfig {
     public String detectionModelUrl() { return detectionModelUrl; }
     /** Returns the custom FaceNet model URL, or {@code null} if using the default. */
     public String recognitionModelUrl() { return recognitionModelUrl; }
+    /** Returns the model download listener, or {@code null} if not configured. */
+    public ModelDownloadListener modelDownloadListener() { return modelDownloadListener; }
 
     /**
      * Returns the resolved cache directory path.
@@ -70,6 +74,25 @@ public final class FaceAIConfig {
     public static Builder builder() { return new Builder(); }
 
     /**
+     * Returns a new builder pre-filled with this configuration's values,
+     * useful for deriving a modified configuration.
+     *
+     * @return a new {@link Builder} seeded from this configuration
+     */
+    public Builder toBuilder() {
+        return new Builder()
+                .cacheDir(cacheDir)
+                .detectionThreshold(detectionThreshold)
+                .nmsThreshold(nmsThreshold)
+                .embeddingDimension(embeddingDimension)
+                .device(device)
+                .l2NormalizeEmbeddings(l2NormalizeEmbeddings)
+                .detectionModelUrl(detectionModelUrl)
+                .recognitionModelUrl(recognitionModelUrl)
+                .modelDownloadListener(modelDownloadListener);
+    }
+
+    /**
      * Builder for {@link FaceAIConfig}.
      * <p>
      * All properties have sensible defaults; call only the setters you need.
@@ -83,6 +106,7 @@ public final class FaceAIConfig {
         private boolean l2NormalizeEmbeddings = true;
         private String detectionModelUrl;
         private String recognitionModelUrl;
+        private ModelDownloadListener modelDownloadListener;
 
         private Builder() {}
 
@@ -108,6 +132,11 @@ public final class FaceAIConfig {
         public Builder detectionModelUrl(String url) { this.detectionModelUrl = url; return this; }
         /** Sets a custom FaceNet model URL. Default: {@code null} (use built-in URL). */
         public Builder recognitionModelUrl(String url) { this.recognitionModelUrl = url; return this; }
+        /** Sets a listener that observes model downloads. Default: {@code null}. */
+        public Builder modelDownloadListener(ModelDownloadListener listener) {
+            this.modelDownloadListener = listener;
+            return this;
+        }
 
         /**
          * Builds the configuration.

@@ -16,6 +16,32 @@ class FaceAIConfigTest {
         assertTrue(config.l2NormalizeEmbeddings());
         assertNull(config.detectionModelUrl());
         assertNull(config.recognitionModelUrl());
+        assertNull(config.modelDownloadListener());
+    }
+
+    @Test
+    void builderSetsModelDownloadListener() {
+        ModelDownloadListener listener = new RecordingModelDownloadListener();
+        FaceAIConfig config = FaceAIConfig.builder()
+                .modelDownloadListener(listener)
+                .build();
+        assertSame(listener, config.modelDownloadListener());
+    }
+
+    @Test
+    void toBuilderPreservesAllValues() {
+        ModelDownloadListener listener = new RecordingModelDownloadListener();
+        FaceAIConfig config = FaceAIConfig.builder()
+                .detectionThreshold(0.55f)
+                .cacheDir("/some/cache")
+                .detectionModelUrl("http://example.com/det.pt")
+                .modelDownloadListener(listener)
+                .build();
+        FaceAIConfig copy = config.toBuilder().build();
+        assertEquals(0.55f, copy.detectionThreshold());
+        assertEquals("/some/cache", copy.cacheDir());
+        assertEquals("http://example.com/det.pt", copy.detectionModelUrl());
+        assertSame(listener, copy.modelDownloadListener());
     }
 
     @Test
