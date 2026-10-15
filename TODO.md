@@ -10,9 +10,9 @@ implemented and committed.
 - [x] Include landmarks in `equals` / `hashCode` / `toString` (null-safe).
 
 ## 2. Active detection path — `RetinaFaceTranslator` (§3.2)
-- [ ] Read `landms` from `list.get(2)` only when `list.size() > 2`.
-- [ ] Extract package-private `decodeLandmarks(...)` helper (VARIANCE_IN = 0.1, clamped to pixel coords).
-- [ ] Attach landmarks to the matching `DetectedFace` so they survive filtering/sorting/NMS.
+- [x] Read `landms` from `list.get(2)` only when `list.size() > 2`.
+- [x] Extract package-private `decodeLandmarks(...)` helper (VARIANCE_IN = 0.1, clamped to pixel coords).
+- [x] Attach landmarks to the matching `DetectedFace` so they survive filtering/sorting/NMS.
 
 ## 3. Legacy path — `FaceDetectionTranslator` (§3.3)
 - [ ] Pass the already-decoded `landms` through to `DetectedFace`.

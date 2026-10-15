@@ -28,8 +28,8 @@ import java.util.List;
  * <p>
  * Post-processing decodes anchor offsets from the raw model output
  * ({@code loc}, {@code conf}, {@code landms} tensors), applies the confidence
- * threshold, performs non-maximum suppression, clamps boxes and sorts by
- * descending confidence.
+ * threshold, performs non-maximum suppression, clamps boxes, attaches the
+ * decoded 5-point landmarks and sorts by descending confidence.
  *
  * <p><strong>This class is internal — not part of the public API.</strong>
  */
@@ -99,6 +99,10 @@ public final class RetinaFaceTranslator implements Translator<BufferedImage, Det
         float[] locData = loc.toFloatArray();
         float[] confData = conf.toFloatArray();
 
+        // Third output tensor: 5-point landmarks [N, 10]. Some exports do not
+        // return it; guard so landmarks stay null in that case.
+        float[] landmsData = list.size() > 2 ? list.get(2).toFloatArray() : null;
+
         double[] priorCx = new double[(int) count];
         double[] priorCy = new double[(int) count];
         double[] priorW = new double[(int) count];
@@ -123,7 +127,10 @@ public final class RetinaFaceTranslator implements Translator<BufferedImage, Det
             int x2 = Math.max(0, Math.min((int) Math.round((cx + bw / 2) * width), width));
             int y2 = Math.max(0, Math.min((int) Math.round((cy + bh / 2) * height), height));
             if (x2 - x1 > 0 && y2 - y1 > 0) {
-                candidates.add(new DetectedFace(x1, y1, x2 - x1, y2 - y1, score));
+                float[] landmarks = landmsData == null
+                        ? null
+                        : decodeLandmarks(landmsData, i, priorCx, priorCy, priorW, priorH, width, height);
+                candidates.add(new DetectedFace(x1, y1, x2 - x1, y2 - y1, score, landmarks));
             }
         }
 
@@ -159,6 +166,40 @@ public final class RetinaFaceTranslator implements Translator<BufferedImage, Det
                 }
             }
         }
+    }
+
+    /**
+     * Decodes the 5-point landmarks for a single detection row.
+     * <p>
+     * Mirrors the box decoding: each coordinate is the prior centre plus the
+     * regressed offset scaled by {@code VARIANCE_IN} and the prior size, then
+     * mapped to pixel coordinates and clamped to the image bounds. Points
+     * {@code 0} and {@code 1} are the two eyes.
+     *
+     * @param landmsData raw landmark tensor values, {@code [N, 10]}
+     * @param row        detection row index into {@code landmsData}
+     * @param priorCx    prior-box centre x (normalized)
+     * @param priorCy    prior-box centre y (normalized)
+     * @param priorW     prior-box width (normalized)
+     * @param priorH     prior-box height (normalized)
+     * @param width      image width in pixels
+     * @param height     image height in pixels
+     * @return 10 floats {@code (x0,y0,...,x4,y4)} in pixel coordinates
+     */
+    static float[] decodeLandmarks(float[] landmsData, int row,
+                                   double[] priorCx, double[] priorCy,
+                                   double[] priorW, double[] priorH,
+                                   int width, int height) {
+        float[] out = new float[10];
+        for (int p = 0; p < 5; p++) {
+            double lx = priorCx[row] + landmsData[row * 10 + 2 * p] * VARIANCE_IN * priorW[row];
+            double ly = priorCy[row] + landmsData[row * 10 + 2 * p + 1] * VARIANCE_IN * priorH[row];
+            int px = Math.max(0, Math.min((int) Math.round(lx * width), width));
+            int py = Math.max(0, Math.min((int) Math.round(ly * height), height));
+            out[2 * p] = px;
+            out[2 * p + 1] = py;
+        }
+        return out;
     }
 
     /**
