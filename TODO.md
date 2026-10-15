@@ -4,10 +4,10 @@ Derived from `REQUIRED_CHANGES_FACE_ROTATION.md`. Checked off as each item is
 implemented and committed.
 
 ## 1. Public API — `DetectedFace` (§3.1)
-- [ ] Add `float[] landmarks` field (10 floats or `null`).
-- [ ] Keep the 5-arg constructor; add the 6-arg constructor that validates length 10 and clones.
-- [ ] Add `hasLandmarks()`, `landmarks()` (defensive copy), `rollAngleDegrees()`.
-- [ ] Include landmarks in `equals` / `hashCode` / `toString` (null-safe).
+- [x] Add `float[] landmarks` field (10 floats or `null`).
+- [x] Keep the 5-arg constructor; add the 6-arg constructor that validates length 10 and clones.
+- [x] Add `hasLandmarks()`, `landmarks()` (defensive copy), `rollAngleDegrees()`.
+- [x] Include landmarks in `equals` / `hashCode` / `toString` (null-safe).
 
 ## 2. Active detection path — `RetinaFaceTranslator` (§3.2)
 - [ ] Read `landms` from `list.get(2)` only when `list.size() > 2`.
