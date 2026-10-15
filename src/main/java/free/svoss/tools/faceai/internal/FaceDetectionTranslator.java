@@ -112,14 +112,18 @@ public class FaceDetectionTranslator implements Translator<Image, DetectedFace[]
         boundingBoxes = NDArrays.concat(new NDList(bbXY, bbWH), 1);
 
         // Decode landmarks (5 points × 2 coords = 10 values per face)
-        NDArray landms = list.get(2);
-        landms = decodeLandm(landms, boxRecover, scaleXY);
+        NDArray landms = null;
+        if (list.size() > 2) {
+            landms = decodeLandm(list.get(2), boxRecover, scaleXY);
+        }
 
         // Filter by confidence threshold
         NDArray cutOff = prob.get(1).gt(confThresh);
         boundingBoxes = boundingBoxes.transpose()
                 .booleanMask(cutOff, 1).transpose();
-        landms = landms.transpose().booleanMask(cutOff, 1).transpose();
+        if (landms != null) {
+            landms = landms.transpose().booleanMask(cutOff, 1).transpose();
+        }
         prob = prob.booleanMask(cutOff, 1);
 
         // Sort by probability, take topK
@@ -167,7 +171,18 @@ public class FaceDetectionTranslator implements Translator<Image, DetectedFace[]
                 }
 
                 if (iw > 0 && ih > 0) {
-                    results.add(new DetectedFace(ix, iy, iw, ih, (float) probability));
+                    float[] landmarksPx = null;
+                    if (landms != null) {
+                        double[] lm = landms.get(idx).toDoubleArray();
+                        landmarksPx = new float[10];
+                        for (int p = 0; p < 5; p++) {
+                            double lx = lm[2 * p] * width;
+                            double ly = lm[2 * p + 1] * height;
+                            landmarksPx[2 * p] = Math.max(0, Math.min((int) Math.round(lx), width));
+                            landmarksPx[2 * p + 1] = Math.max(0, Math.min((int) Math.round(ly), height));
+                        }
+                    }
+                    results.add(new DetectedFace(ix, iy, iw, ih, (float) probability, landmarksPx));
                     accepted.add(boxArr);
                     recorder.put(classId, accepted);
                 }

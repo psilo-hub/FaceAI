@@ -15,7 +15,7 @@ implemented and committed.
 - [x] Attach landmarks to the matching `DetectedFace` so they survive filtering/sorting/NMS.
 
 ## 3. Legacy path — `FaceDetectionTranslator` (§3.3)
-- [ ] Pass the already-decoded `landms` through to `DetectedFace`.
+- [x] Pass the already-decoded `landms` through to `DetectedFace`.
 
 ## 4. Unit tests (§3.5)
 - [ ] `DetectedFaceTest`: `hasLandmarks` / `landmarks` defensive copy.
