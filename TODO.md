@@ -18,11 +18,11 @@ implemented and committed.
 - [x] Pass the already-decoded `landms` through to `DetectedFace`.
 
 ## 4. Unit tests (§3.5)
-- [ ] `DetectedFaceTest`: `hasLandmarks` / `landmarks` defensive copy.
-- [ ] `DetectedFaceTest`: `rollAngleDegrees()` synthetic eye positions (0, 90, -90, 180→0).
-- [ ] `DetectedFaceTest`: `Double.NaN` when absent; 5-arg ctor has no landmarks; length != 10 throws.
-- [ ] `DetectedFaceTest`: `equals` / `hashCode` distinguish different landmarks.
-- [ ] `RetinaFaceTranslatorTest`: unit test `decodeLandmarks` helper (no model required).
+- [x] `DetectedFaceTest`: `hasLandmarks` / `landmarks` defensive copy.
+- [x] `DetectedFaceTest`: `rollAngleDegrees()` synthetic eye positions (0, 90, -90, 180→0).
+- [x] `DetectedFaceTest`: `Double.NaN` when absent; 5-arg ctor has no landmarks; length != 10 throws.
+- [x] `DetectedFaceTest`: `equals` / `hashCode` distinguish different landmarks.
+- [x] `RetinaFaceTranslatorTest`: unit test `decodeLandmarks` helper (no model required).
 
 ## 5. Integration test (§3.5)
 - [ ] `@Tag("integration")` test: real model, `hasLandmarks()`, each landmark within bbox margin.

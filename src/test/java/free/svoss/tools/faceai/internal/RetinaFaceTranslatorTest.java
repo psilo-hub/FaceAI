@@ -89,4 +89,69 @@ class RetinaFaceTranslatorTest {
                     "Results should be sorted by descending confidence");
         }
     }
+
+    // ── Landmark decoding ───────────────────────────────────────────────
+
+    private static final int W = 64;
+    private static final int H = 64;
+    private static final int COUNT = 168; // 8x8x2 + 4x4x2 + 2x2x2 for a 64x64 image
+
+    private static double[][] priors() {
+        double[] cx = new double[COUNT];
+        double[] cy = new double[COUNT];
+        double[] w = new double[COUNT];
+        double[] h = new double[COUNT];
+        RetinaFaceTranslator.generatePriors(W, H, cx, cy, w, h);
+        return new double[][]{cx, cy, w, h};
+    }
+
+    @Test
+    void decodeLandmarksUsesPriorCentreForZeroOffsets() {
+        double[][] p = priors();
+        float[] raw = new float[COUNT * 10];
+        float[] lm = RetinaFaceTranslator.decodeLandmarks(raw, 0, p[0], p[1], p[2], p[3], W, H);
+
+        assertEquals(10, lm.length);
+        // First prior centre is (0.5*8)/64 = 0.0625 -> 4 px on both axes.
+        for (float v : lm) {
+            assertEquals(4f, v, 1e-4f);
+        }
+    }
+
+    @Test
+    void decodeLandmarksAppliesOffsetAndPriorScale() {
+        double[][] p = priors();
+        float[] raw = new float[COUNT * 10];
+        raw[0] = 1.0f; // x offset of point 0
+        float[] lm = RetinaFaceTranslator.decodeLandmarks(raw, 0, p[0], p[1], p[2], p[3], W, H);
+
+        // lx = 0.0625 + 1.0 * 0.1 * 0.25 = 0.0875 -> 5.6 px -> 6
+        assertEquals(6f, lm[0], 1e-4f);
+        // y offset is zero -> prior centre -> 4 px
+        assertEquals(4f, lm[1], 1e-4f);
+    }
+
+    @Test
+    void decodeLandmarksClampsToImageBounds() {
+        double[][] p = priors();
+        float[] raw = new float[COUNT * 10];
+        raw[0] = 10000f;   // far right
+        raw[1] = -10000f;  // far above
+        float[] lm = RetinaFaceTranslator.decodeLandmarks(raw, 0, p[0], p[1], p[2], p[3], W, H);
+
+        assertEquals(W, lm[0], 1e-4f);
+        assertEquals(0f, lm[1], 1e-4f);
+    }
+
+    @Test
+    void decodeLandmarksMapsAllFivePoints() {
+        double[][] p = priors();
+        float[] raw = new float[COUNT * 10];
+        // Give point index 2 (nose) a distinct x offset.
+        raw[4] = 1.0f;
+        float[] lm = RetinaFaceTranslator.decodeLandmarks(raw, 0, p[0], p[1], p[2], p[3], W, H);
+
+        assertEquals(6f, lm[4], 1e-4f);
+        assertEquals(4f, lm[5], 1e-4f);
+    }
 }
