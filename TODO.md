@@ -33,9 +33,9 @@ implemented and committed.
 - [x] `PROJECT_SPEC.md` Phase 9: tick `5-point landmarks in DetectedFace`.
 
 ## 7. Versioning and release (§3.4)
-- [ ] Add `CHANGELOG.md` entry for `0.2.0`.
-- [ ] Bump version `0.1.0` → `0.2.0` in `pom.xml`.
-- [ ] `mvn install` so the consumer can resolve `free.svoss.tools:faceai:0.2.0`.
+- [x] Add `CHANGELOG.md` entry for `0.2.0`.
+- [x] Bump version `0.1.0` → `0.2.0` in `pom.xml`.
+- [x] `mvn install` so the consumer can resolve `free.svoss.tools:faceai:0.2.0`.
 
 ## 8. Verification
 - [ ] `mvn test` green.
