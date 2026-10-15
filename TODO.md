@@ -38,8 +38,8 @@ implemented and committed.
 - [x] `mvn install` so the consumer can resolve `free.svoss.tools:faceai:0.2.0`.
 
 ## 8. Verification
-- [ ] `mvn test` green.
-- [ ] `mvn verify -Pintegration` green (model download required).
+- [x] `mvn test` green.
+- [x] `mvn verify -Pintegration` green (model download required).
 
 ## Not required (optional, left for the consumer — §4)
 - [ ] Four-orientation `detectFacesUpright` convenience — consumer implements the search.

@@ -18,6 +18,9 @@
         <djl.version>0.31.0</djl.version>
         <slf4j.version>2.0.13</slf4j.version>
         <junit.version>5.10.2</junit.version>
+        <!-- Groups excluded from the default test run. The `integration` profile
+             overrides this so the tagged integration tests can run. -->
+        <surefire.excludedGroups>integration</surefire.excludedGroups>
     </properties>
 
     <dependencies>
@@ -95,7 +98,7 @@
                 <configuration>
                     <!-- Unit tests only by default. Integration tests are tagged
                          @Tag("integration") and run via: mvn verify -Pintegration -->
-                    <excludedGroups>integration</excludedGroups>
+                    <excludedGroups>${surefire.excludedGroups}</excludedGroups>
                 </configuration>
             </plugin>
         </plugins>
@@ -104,6 +107,11 @@
     <profiles>
         <profile>
             <id>integration</id>
+            <properties>
+                <!-- Running the integration profile must not exclude the
+                     integration-tagged tests; exclude a tag that never occurs. -->
+                <surefire.excludedGroups>integration-disabled</surefire.excludedGroups>
+            </properties>
             <build>
                 <plugins>
                     <plugin>
@@ -111,7 +119,6 @@
                         <artifactId>maven-surefire-plugin</artifactId>
                         <configuration>
                             <groups>integration</groups>
-                            <excludedGroups/>
                         </configuration>
                     </plugin>
                 </plugins>

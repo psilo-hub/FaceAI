@@ -82,7 +82,21 @@ class FaceAIIntegrationTest {
     void detectFacesValidatesInputs() throws IOException {
         try (FaceAI faceai = FaceAI.create()) {
             assertThrows(NullPointerException.class, () -> faceai.detectFaces(null));
-            BufferedImage empty = new BufferedImage(0, 0, BufferedImage.TYPE_INT_RGB);
+
+            // A zero-dimension BufferedImage cannot be constructed directly (the
+            // JDK rejects it), so override the accessors to exercise FaceAI's
+            // own positive-dimension guard.
+            BufferedImage empty = new BufferedImage(1, 1, BufferedImage.TYPE_INT_RGB) {
+                @Override
+                public int getWidth() {
+                    return 0;
+                }
+
+                @Override
+                public int getHeight() {
+                    return 0;
+                }
+            };
             assertThrows(IllegalArgumentException.class, () -> faceai.detectFaces(empty));
         }
     }
