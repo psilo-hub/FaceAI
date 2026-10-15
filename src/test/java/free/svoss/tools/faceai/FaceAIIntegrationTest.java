@@ -86,4 +86,43 @@ class FaceAIIntegrationTest {
             assertThrows(IllegalArgumentException.class, () -> faceai.detectFaces(empty));
         }
     }
+
+    @Test
+    void detectedFacesCarryLandmarksWithinBoundingBox() throws IOException {
+        BufferedImage img = loadImage("person1_a.jpg");
+
+        try (FaceAI faceai = FaceAI.create()) {
+            DetectedFace[] faces = faceai.detectFaces(img);
+            assertTrue(faces.length >= 1, "person1_a should yield at least one face");
+
+            boolean anyWithLandmarks = false;
+            for (DetectedFace face : faces) {
+                if (!face.hasLandmarks()) {
+                    continue;
+                }
+                anyWithLandmarks = true;
+
+                float[] landmarks = face.landmarks();
+                assertEquals(10, landmarks.length, "5 landmarks = 10 floats");
+
+                double roll = face.rollAngleDegrees();
+                assertTrue(roll >= -90.0 && roll <= 90.0,
+                        "roll angle must be within [-90, 90] but was " + roll);
+
+                // Allow a small margin around the bounding box; landmark
+                // regression is not clipped to the box.
+                double margin = Math.max(face.width(), face.height()) * 0.25 + 5.0;
+                for (int p = 0; p < 5; p++) {
+                    double lx = landmarks[2 * p];
+                    double ly = landmarks[2 * p + 1];
+                    assertTrue(lx >= face.x() - margin && lx <= face.x() + face.width() + margin,
+                            "landmark " + p + " x=" + lx + " outside bbox margin");
+                    assertTrue(ly >= face.y() - margin && ly <= face.y() + face.height() + margin,
+                            "landmark " + p + " y=" + ly + " outside bbox margin");
+                }
+            }
+            assertTrue(anyWithLandmarks,
+                    "RetinaFace should return 5-point landmarks for at least one face");
+        }
+    }
 }

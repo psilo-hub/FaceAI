@@ -25,7 +25,7 @@ implemented and committed.
 - [x] `RetinaFaceTranslatorTest`: unit test `decodeLandmarks` helper (no model required).
 
 ## 5. Integration test (§3.5)
-- [ ] `@Tag("integration")` test: real model, `hasLandmarks()`, each landmark within bbox margin.
+- [x] `@Tag("integration")` test: real model, `hasLandmarks()`, each landmark within bbox margin.
 
 ## 6. Documentation (§3.4)
 - [ ] `PROJECT_SPEC.md` §3.2: replace "Optional future field" with the new field/constructor/`rollAngleDegrees()`.
