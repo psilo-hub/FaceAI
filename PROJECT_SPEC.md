@@ -2,7 +2,7 @@
 
 ## 0. How to Use This Document
 
-This file is the source of truth for OpenCode. **Status: Phases 0–8 are complete and released as `0.1.0`.** The remaining work is optional Phase 9. When changing behavior or adding public API, update this document in the same change. Use the phase checklists below to track what is already done.
+This file is the source of truth for OpenCode. **Status: Phases 0–8 are complete and released as `0.1.0`; `0.2.0` adds 5-point landmarks and `rollAngleDegrees()`.** The remaining work is optional Phase 9. When changing behavior or adding public API, update this document in the same change. Use the phase checklists below to track what is already done.
 
 ---
 
@@ -83,11 +83,18 @@ Value object for one detected face.
 
 ```java
 public final class DetectedFace {
+    public DetectedFace(int x, int y, int width, int height, float confidence);
+    public DetectedFace(int x, int y, int width, int height, float confidence, float[] landmarks);
+
     public int x();
     public int y();
     public int width();
     public int height();
     public float confidence();
+
+    public boolean hasLandmarks();
+    public float[] landmarks();          // defensive copy, or null
+    public double rollAngleDegrees();    // in-plane roll from the eye line, or NaN
 
     public Rectangle bounds();
     public BufferedImage crop(BufferedImage source);
@@ -101,8 +108,21 @@ Requirements:
 - Coordinates are clamped to the source image bounds.
 - `confidence` is between `0.0` and `1.0`.
 - `crop(source)` returns a sub-image for the bounding box.
-- `equals`, `hashCode`, and `toString` should be implemented.
-- Optional future field: 5-point landmarks. Not required for v1.
+- `equals`, `hashCode`, and `toString` should be implemented (including the landmarks).
+- **5-point landmarks (added in `0.2.0`).** A detection may carry the RetinaFace
+  5-point landmarks as 10 floats `(x0,y0,...,x4,y4)` in the same pixel coordinate
+  space as the bounding box. The point order is the RetinaFace / WIDER FACE
+  convention: `0` = left eye, `1` = right eye, `2` = nose tip, `3` = left mouth
+  corner, `4` = right mouth corner. Points `0` and `1` form the eye line.
+  - The 5-argument constructor creates a detection without landmarks
+    (`hasLandmarks() == false`, `landmarks() == null`); it is preserved for source
+    and binary compatibility.
+  - The 6-argument constructor accepts a `float[]`; a non-null array whose length
+    is not 10 throws `IllegalArgumentException`. The array is cloned.
+  - `landmarks()` returns a defensive copy, so callers cannot mutate the value object.
+  - `rollAngleDegrees()` derives the in-plane face rotation (roll) from the eye
+    line: `0.0` = upright (eye line horizontal), positive = clockwise, normalised to
+    `[-90, 90]` degrees. It returns `Double.NaN` when landmarks are unavailable.
 
 ### 3.3 `FaceAIConfig`
 
@@ -192,6 +212,7 @@ Runtime exception for all library-specific failures.
   - Decode anchor offsets to boxes (normalized) and map to pixel coordinates.
   - Confidence threshold (default `0.8`), keep top-K (`5000`).
   - Non-maximum suppression with IoU threshold `0.4`.
+  - Decode the 5-point landmarks (`landms`, the third output tensor `list.get(2)`) per detection and attach them to the corresponding `DetectedFace`; the tensor is read only when `list.size() > 2`, otherwise landmarks stay `null`.
   - Clamp boxes to image bounds.
   - Sort by confidence descending.
 - Input: runs at native resolution — BGR channels, values `[0,255]`, minus BGR mean `[104,117,123]`, CHW `3×H×W` (DJL adds the leading batch dim). No letterbox/resize is applied; priors are generated for the input size.
@@ -231,7 +252,7 @@ Internal classes (all in `free.svoss.tools.faceai.internal`):
 - `RetinaFaceTranslator`
   - Implements `Translator<BufferedImage, DetectedFace[]>` directly.
   - Preprocessing: BGR channels at native resolution, values `[0,255]`, minus BGR mean `[104,117,123]`, CHW `3×H×W` (batch dim added by DJL). Mirrors `Pytorch_Retinaface`.
-  - Post-processing: decodes `loc`/`conf` tensors via generated anchor priors (`generatePriors`, package-private static), applies the confidence threshold, keeps top-K, clamps to input bounds, applies NMS (`applyNms`/`computeIoU`, package-private static for testing), sorts by confidence descending.
+  - Post-processing: decodes `loc`/`conf` tensors via generated anchor priors (`generatePriors`, package-private static), decodes the `landms` tensor into 5-point landmarks (`decodeLandmarks`, package-private static), applies the confidence threshold, keeps top-K, clamps to input bounds, applies NMS (`applyNms`/`computeIoU`, package-private static for testing), sorts by confidence descending.
 - `FaceNetRecognizer`
   - Owns the recognition model + `Predictor<BufferedImage, float[]>`.
   - Builds a DJL `Criteria` with the FaceNet URL, loads via `ModelLoader`.
@@ -475,7 +496,7 @@ Do not start until Phases 0–8 are complete.
 - [ ] GPU support via DJL device selection.
 - [ ] Batch detection and batch embedding.
 - [ ] `calcMedian(List<float[]>)`.
-- [ ] 5-point landmarks in `DetectedFace`.
+- [x] 5-point landmarks in `DetectedFace`. (implemented in `0.2.0` — see §3.2)
 - [ ] Face alignment using landmarks.
 - [ ] Configurable similarity threshold helper.
 - [ ] Thread-safe wrapper.
@@ -543,4 +564,4 @@ Do not start until Phases 0–8 are complete.
 - The recognition model must be a TorchScript export from `facenet-pytorch`. The library must not invoke Python.
 - Prefer clarity over cleverness. This is a small library.
 - **Remaining cleanup (optional, non-blocking):** remove the unused `FaceDetectionTranslator` class once the anchor-based path is confirmed unnecessary.
-- **Release notes:** version `0.1.0` (2026-09-11) in `CHANGELOG.md`; MIT license in `LICENSE`.
+- **Release notes:** version `0.1.0` (2026-09-11) in `CHANGELOG.md`; MIT license in `LICENSE`. Version `0.2.0` adds 5-point landmarks on `DetectedFace`.

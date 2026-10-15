@@ -28,9 +28,9 @@ implemented and committed.
 - [x] `@Tag("integration")` test: real model, `hasLandmarks()`, each landmark within bbox margin.
 
 ## 6. Documentation (§3.4)
-- [ ] `PROJECT_SPEC.md` §3.2: replace "Optional future field" with the new field/constructor/`rollAngleDegrees()`.
-- [ ] `PROJECT_SPEC.md` §4.1: document landmark decoding in the post-processing list.
-- [ ] `PROJECT_SPEC.md` Phase 9: tick `5-point landmarks in DetectedFace`.
+- [x] `PROJECT_SPEC.md` §3.2: replace "Optional future field" with the new field/constructor/`rollAngleDegrees()`.
+- [x] `PROJECT_SPEC.md` §4.1: document landmark decoding in the post-processing list.
+- [x] `PROJECT_SPEC.md` Phase 9: tick `5-point landmarks in DetectedFace`.
 
 ## 7. Versioning and release (§3.4)
 - [ ] Add `CHANGELOG.md` entry for `0.2.0`.
